@@ -19,6 +19,7 @@ library(viridisLite)
 library(lme4)
 library(car)
 library(sjPlot)
+library(broom)
 
 day_of_year<- function(day, format="%Y-%m-%d"){
   day=  as.POSIXlt(day, format=format)
@@ -59,8 +60,9 @@ names(dddat)[which(names(dddat)=="EADDC")]<-"G"
 la.spec= dddat %>% group_by(Species) %>% summarise(Npop= length(lon)  )
 la.spec= subset(la.spec, la.spec$Npop>4)
 
-la.dat= subset(dddat, dddat$Species %in% la.spec$Species)
+la.dat.sp= subset(dddat, dddat$Species %in% la.spec$Species)
 
+#---
 #map
 library(lattice)
 library(rasterVis)
@@ -78,6 +80,7 @@ class(world)
 
 ggplot(data = world) +
   geom_sf()+geom_point(data=la.dat,aes(x=lon, y = lat, color=Species))+ theme(legend.position = "none")
+#---
 
 #get elevation
 #library(rgbif)
@@ -100,7 +103,7 @@ la.dat.e= read.csv("SpeciesLA.csv")
 # BY GENUS
 
 la.gen= dddat %>% group_by(Genus) %>% summarise(Npop= length(lon)  )
-la.gen= subset(la.gen, la.gen$Npop>9)
+la.gen= subset(la.gen, la.gen$Npop>9) #change?
 
 la.dat= subset(dddat, dddat$Genus %in% la.gen$Genus)
 
@@ -127,7 +130,8 @@ la.dat= subset(dddat, dddat$Genus %in% la.gen$Genus)
 #la.dat=la.dat.e #include elevation
 
 #by order
-orders=unique(la.dat$Order)[1:5] #Drop "Neuroptera"   "Thysanoptera" due to limited data
+orders= unique(la.dat$Order)[1:4]
+  #Drop "Thysanoptera" due to limited data
 la.dat= la.dat[la.dat$Order %in% orders,]
 
 #stats by lat elev
@@ -138,34 +142,54 @@ ggplot(la.dat, aes(x=abs.lat)) +
   geom_histogram()+facet_grid(.~Order)
 
 #scale
-la.dat2 <- transform(la.dat,
-                    G_cs=scale(G),
-                    abs.lat_cs=scale(abs.lat))
+#la.dat2 <- transform(la.dat,
+#                    G_cs=scale(G),
+#                    abs.lat_cs=scale(abs.lat))
 
 #models
 mod1 <- lmer(T0 ~ G*abs.lat+ 
                  (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat)
 
-mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+ 
-               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat2)
+#mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+ 
+#               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat2)
 
 #mod1 <- lmer(T0 ~ G_cs*log(elev)+ 
 #               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat2)
-# no 
 
 #by order
-ord.k=5
+ord.k=4
 mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+ 
                (1|Genus), na.action = 'na.omit', REML=FALSE, 
              data = la.dat2[la.dat2$Order==orders[ord.k],])
 
 Anova(mod1, type=3)
-summary(mod1)
+#summary(mod1)
 
-#p2 <- plot_model(mod1, type="pred", terms=c("G","abs.lat"), show.data=FALSE)
-p2 <- plot_model(mod1, type="pred", terms=c("G_cs","abs.lat_cs"), show.data=FALSE)
+fixef(mod1)
 
-#significant for orders: Coleoptera, Homoptera
+#get standardized coefficients, see https://stackoverflow.com/questions/25142901/standardized-coefficients-for-lmer-model
+stdCoef.merMod <- function(object) {
+  sdy <- sd(getME(object,"y"))
+  sdx <- apply(getME(object,"X"), 2, sd)
+  sc <- fixef(object)*sdx/sdy
+  se.fixef <- coef(summary(object))[,"Std. Error"]
+  se <- se.fixef*sdx/sdy
+  return(data.frame(stdcoef=sc, stdse=se))
+}
+
+stdCoef.merMod(mod1)
+
+p2 <- plot_model(mod1, type="pred", terms=c("G","abs.lat"), show.data=TRUE)
+#p2 <- plot_model(mod1, type="pred", terms=c("G_cs","abs.lat_cs"), show.data=TRUE)
+p2
+
+#extract coefficients
+coef_st = tidy(mod1, 
+               effects = "fixed",
+               conf.int = TRUE,
+               conf.method = "profile")
+
+#significant for orders: Coleoptera, Homoptera, ord.k=1,3
 #inverse relationship with T0 and G, steeper at higher latitudes
 
 #----
@@ -173,10 +197,11 @@ p2 <- plot_model(mod1, type="pred", terms=c("G_cs","abs.lat_cs"), show.data=FALS
 
 gen.lab= la.dat[duplicated(la.dat$Genus)==FALSE,]
 
+#by latitude
 p<- ggplot(data=la.dat, aes(x=log(G), y = T0, color=Genus))+facet_grid(.~Order) +
   theme_bw()+ geom_point(aes(size=abs(lat)))  +geom_smooth(method=lm, se=FALSE)+scale_size(range = c(1, 4))+
   theme(legend.position="bottom")+
-  geom_text(data=gen.lab, aes(label=Genus), hjust=1)
+  geom_text(data=gen.lab, aes(label=Genus), hjust=0)
 
 #plot out
 setwd(paste(fdir,"out/",sep="") )
@@ -189,3 +214,7 @@ dev.off()
 #Agrotis: includes cutworm pests
 #Ceratitis: pests, can tolerate cool conditions
 #shallow: Brevicoryne: cabbage aphids
+
+
+
+

@@ -1,11 +1,31 @@
 #VIRTUAL RECIPROCAL TRANSPLANTS
 
-# read data in
-fdir= "/Volumes/GoogleDrive/My Drive/Seasonality/"
-setwd(paste(fdir,"out/",sep="") )
-la.dat=read.csv("SpeciesLA.csv")
+#load degree day functions
+source("DDFunctions.R")
+
+#model predictions
+histogram(la.dat$abs.lat) #lat= 20,35,50 degrees
+histogram(la.dat$G) #G=150,350
+histogram(la.dat$T0) #T0= 
+
+la.dat.sub=la.dat[,c("G","abs.lat","T0","Genus")]
+
+mod1 <- lmer(T0 ~ G*abs.lat+ 
+               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat.sub)
+
+#make new data
+G= c(150, 150, 150, 350, 350, 350)
+abs.lat= c(20,35,50,20,35,50)
+new.dat= as.data.frame(cbind(G, abs.lat))
+new.dat$Genus= "Aphis"
+
+new.dat$T0 <- predict(mod1, newdata = new.dat)
+
+#show phenology given fits
+#climate change responses
 
 #--------------------------------
+#SAVE STATION DATA
 #FIND CLOSEST GHCN STATIONS
 
 #Read GGCN database inventory http://www.ncdc.noaa.gov/oa/climate/ghcn-daily/
@@ -25,29 +45,28 @@ stations= stations[which(stations$TMAX=="TMAX" & stations$TMIN=="TMIN"),]
 
 stat.coords= cbind(stations$Lon, stations$Lat)
 
-#--------------------------------
-#SET UP DATA STORAGE
-# phen.dat= array(NA, dim=c(nrow(la.dat), length(1970:2015), 20, 10), dimnames=list(NULL,as.character(1970:2015),as.character(1:20),c("phen","Tmean.e","Tsd.e","T10q.e","Tmean","Tsd","T10q","DaysGen", "Tmean.e.fixed", "Tmean.fixed")) )
-# ngens= array(NA, dim=c(nrow(la.dat), length(1970:2015)), dimnames=list(NULL,as.character(1970:2015)))
-# phen.fixed= array(NA, dim=c(nrow(la.dat), 20, 8), dimnames=list(NULL,as.character(1:20),c("phen","Tmean.e","Tsd.e","T10q.e","Tmean","Tsd","T10q","DaysGen")) )
-
 #----------------------------------
 #ANALYSIS
 
-specs= unique(la.dat$Species)
+gen.dat=new.dat
+gen.dat$lon=-105 #choose longitude
+gen.dat$lat= gen.dat$abs.lat
 
-j1.all= array(NA, dim=c(length(specs),length(2015:2020),100,100) )
-t1.all= array(NA, dim=c(length(specs),length(2015:2020),100,100) )
-ngen.all= array(NA, dim=c(length(specs),length(2015:2020),100,100) )
+j1.all= array(NA, dim=c(1,length(1970:2015),6,6) )
+t1.all= array(NA, dim=c(1,length(1970:2015),6,6) )
+ngen.all= array(NA, dim=c(1,length(1970:2015),6,6) )
 
-for(spec.k in 1:length(specs)){
-  
-  spec.dat= subset(la.dat, la.dat$Species==specs[spec.k])
-  stat.inds= order(spec.dat$lat)[!duplicated(sort(spec.dat$lat))]
+#------
+#loop stations
+stat.inds= order(gen.dat$lat)[!duplicated(sort(gen.dat$lat))]
   
   for(stat.k in 1:length(stat.inds) ){  
-    min.dist<- order(spDistsN1(stat.coords, as.numeric(spec.dat[stat.k,c("lon","lat")]), longlat = TRUE))[1:100]
+    min.dist<- order(spDistsN1(stat.coords, as.numeric(gen.dat[stat.k,c("lon","lat")]), longlat = TRUE))[1:100]
     min.site= stations$Id[min.dist]
+    
+    #can't access MX stations, check for US
+    inds= grep("MX",min.site)
+    if(length(inds)>0) min.site= min.site[-inds]
     
     ind=0
     years=NA
@@ -101,10 +120,10 @@ for(spec.k in 1:length(specs)){
     } #END WHILE YEARS
     
     #RECORD SITE DATA
-    spec.dat$Id[stat.k]= as.character(min.site[ind])
-    spec.dat$st.lat[stat.k]= stations$Lat[min.dist[ind]]
-    spec.dat$st.lon[stat.k]= stations$Lon[min.dist[ind]]
-    spec.dat$st.elev[stat.k]= stations$elev[min.dist[ind]]
+    gen.dat$Id[stat.k]= as.character(min.site[ind])
+    gen.dat$st.lat[stat.k]= stations$Lat[min.dist[ind]]
+    gen.dat$st.lon[stat.k]= stations$Lon[min.dist[ind]]
+    gen.dat$st.elev[stat.k]= stations$elev[min.dist[ind]]
     
     #--------------------------------------
     #INTERPOLATE MISSING DATA
@@ -119,22 +138,13 @@ for(spec.k in 1:length(specs)){
     #---------------------------
     #TRANSPLANT
     
-    dds= array(NA, dim=c( nrow(spec.dat), length(stat.inds), 20, 2) )
-    
-    #normalize S hemisphere to N hemisphere 
-    if(spec.dat[stat.k,"lat"]<0) 
-    {inds.jd= which(dat$j>181)
-    inds.jj= which(dat$j<182)
-    
-    dat[inds.jd, "j"] = dat$j[inds.jd] -181
-    dat[inds.jj, "j"] = dat$j[inds.jj] +184
-    } #end fix s hemi
+    dds= array(NA, dim=c( nrow(gen.dat), length(stat.inds), 20, 2) )
     
     #CALCULATE DEGREE DAYS
-    for(pop.k in 1:nrow(spec.dat) ){
+    for(pop.k in 1:nrow(gen.dat) ){
       
       #dds[,pop.k,stat.k]
-      dat$dd= apply( dat[,c("tmin","tmax")], MARGIN=1, FUN=degree.days.mat, LDT=spec.dat$T0[pop.k] )
+      dat$dd= apply( dat[,c("tmin","tmax")], MARGIN=1, FUN=degree.days.mat, LDT=gen.dat$T0[pop.k] )
       
       dat.dd = dat %>% group_by(year) %>% arrange(j) %>% mutate(cs = cumsum(dd))
       
@@ -145,9 +155,9 @@ for(spec.k in 1:length(specs)){
       js= matrix(NA, 20, length(1970:2015) )
       ts=  matrix(NA, 20, length(1970:2015) )
       
-      for(speck in 1:20){
+      for(genk in 1:20){
         
-        phen= dat.dd %>%  group_by(year) %>% slice(which.max(cs> (speck* spec.dat$G[pop.k]) ))
+        phen= dat.dd %>%  group_by(year) %>% slice(which.max(cs> (genk* gen.dat$G[pop.k]) ))
         
         #replace eroneous values
         phen[which(phen$j==1),"j"]=NA #& phen$cs==0
@@ -184,27 +194,27 @@ for(spec.k in 1:length(specs)){
       
       all.na= apply(js, MARGIN=1, function(x)all(is.na(x)) )
       
-      ngen.all[genus.k,,stat.k,pop.k]= apply(js, MARGIN=2, FUN=function(x)length(which(x>1)) )
+      ngen.all[1,,stat.k,pop.k]= apply(js, MARGIN=2, FUN=function(x)length(which(x>1)) )
       #correct for years without data
-      ngen.all[genus.k,which(all.na==TRUE),stat.k,pop.k]=NA
+      ngen.all[1,which(all.na==TRUE),stat.k,pop.k]=NA
       
-      j1.all[genus.k,,stat.k,pop.k]= js[1,]
-      t1.all[genus.k,,stat.k,pop.k]= ts[1,]
+      j1.all[1,,stat.k,pop.k]= js[1,]
+      t1.all[1,,stat.k,pop.k]= ts[1,]
       
     } #end population loop
     
   } #loop station
-} #loop genus
+
 
 ##SAVE OUTPUT
-setwd(paste(fdir,"out/" ,sep=""))
+setwd(paste(fdir,"out_recip/" ,sep=""))
 saveRDS(phen.dat, "phendat_gen.rds")
 saveRDS(phen.fixed, "phenfix_gen.rds")
 saveRDS(ngens, "ngens_gen.rds")
 saveRDS(dddat, "dddat_media_gen.rds")
 
 ##READ BACK IN
-# setwd(paste(fdir,"out/",sep="") )
+# setwd(paste(fdir,"out_recip/",sep="") )
 # phen.dat= readRDS("phendat_gen.rds")
 # phen.fixed= readRDS("phenfix_gen.rds")
 # ngens= readRDS("ngens_gen.rds")
@@ -229,68 +239,59 @@ library(cowplot)
 #for each genus
 #across years, for each station, plot data for all populations
 
-setwd("/Volumes/GoogleDrive/My Drive/Buckley/work/ICBSeasonality/figures/LocalAdaptation/") 
-pdf("RecipTran.pdf",height = 5, width = 10)
+j1.all= array(NA, dim=c(1,length(1970:2015),6,6) )
+j1.y= j1.all[,,1:6,1:6]
+j1.all[1,,stat.k,pop.k]
 
-for(genus.k in 1:length(genera)){
-  
-  gen.dat= subset(la.dat, la.dat$Genus==genera[genus.k])
-  lat.ord= order(abs(gen.dat$lat))
-  #order lats
-  lats= round(gen.dat$lat[lat.ord],2)
-  
-  ngen.g= ngen.all[genus.k,,lat.ord,lat.ord]
-  j1.g= j1.all[genus.k,,lat.ord,lat.ord]
-  t1.g= t1.all[genus.k,,lat.ord,lat.ord]
-  
-  #melt
-  ngen.m= melt(ngen.g, varnames=c("year","station","pop") )
-  j1.m= melt(j1.g, varnames=c("year","station","pop") )
-  t1.m= melt(t1.g, varnames=c("year","station","pop") )
-  
-  #average across years
-  ngen.y= aggregate(ngen.m, by= list(ngen.m$station, ngen.m$pop), FUN=mean, na.rm=TRUE )
-  j1.y= aggregate(j1.m, by= list(j1.m$station, j1.m$pop), FUN=mean, na.rm=TRUE )
-  t1.y= aggregate(t1.m, by= list(t1.m$station, t1.m$pop), FUN=mean, na.rm=TRUE )
-  
-  #add lat
-  ngen.y$source.lat= abs(lats[ngen.y$pop]);  ngen.y$trans.lat= abs(lats[ngen.y$station])
-  j1.y$source.lat= abs(lats[j1.y$pop]);  j1.y$trans.lat= abs(lats[j1.y$station])
-  t1.y$source.lat= abs(lats[t1.y$pop]);  t1.y$trans.lat= abs(lats[t1.y$station])
-  
-  #surface plots # x = source.lat, y = trans.lat
-  #ngen       
-  n.plot= ggplot(ngen.y) + 
-    aes(x = factor(source.lat), y = factor(trans.lat), z = value, fill = value) + 
-    geom_tile() + 
-    coord_equal() + 
-    scale_fill_distiller(palette="Spectral", na.value="white", name="number\ngenerations")+
-    theme(legend.position="bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(title=genera[genus.k], x="Source Lat", y="Transplant Lat")
-  #, breaks=c(1,2, 5,10,20)) 
-  #  +theme_bw(base_size=18)+xlab("T0 (°C)")+ylab("G")+ggtitle(lats[i])+ theme(legend.position="right")+ coord_fixed(ratio = 0.01) 
-  
-  #j1
-  j.plot= ggplot(j1.y) + 
-    aes(x = factor(source.lat), y = factor(trans.lat), z = value, fill = value) + 
-    geom_tile() + 
-    coord_equal() + 
-    scale_fill_distiller(palette="Spectral", na.value="white", name="j")+
-    theme(legend.position="bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(title=genera[genus.k], x="Source Lat", y="Transplant Lat")
-  
-  #t1
-  t.plot= ggplot(t1.y) + 
-    aes(x = factor(source.lat), y = factor(trans.lat), z = value, fill = value) + 
-    geom_tile() + 
-    coord_equal() + 
-    scale_fill_distiller(palette="Spectral", na.value="white", name="temperature") + 
-    theme(legend.position="bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(title=genera[genus.k], x="Source Lat", y="Transplant Lat")
-  
-  p1= plot_grid(n.plot, j.plot, t.plot, labels = c("A", "B","C"), ncol=3)
-  print(p1)
-  
-} #end loop genera
+#melt
+j1.m= melt(j1.all, varnames=c("gen","year","station","pop") )
+j1.m= na.omit(j1.m)
+
+#add labels
+j1.m$lat=c(20,35,50)[j1.m$station]
+j1.m$Year= years.ind[j1.m$year]
+j1.m$G= years.ind[j1.m$year]
+j1.m$T0= round(new.dat$T0,2)[j1.m$pop]
+j1.m$G= new.dat$G[j1.m$pop]
+j1.m$source.lat= new.dat$abs.lat[j1.m$pop]
+
+#restrict years
+j1.y= j1.m#[j1.m$Year %in% c(1970, 2015),]
+
+#plot phenology
+ggplot(data= j1.y) + 
+  aes(x = Year, y = value, color=factor(source.lat), lty=factor(lat), shape=factor(G)) + 
+  geom_line() + geom_point(size=2.5, aes(fill=(ifelse(G==150, NA, T0))))+
+  ylab("First generation phenology (day of year)")+
+  scale_shape_manual(values=c(1,21))+ #or 19
+  scale_fill_continuous(na.value=NA)+
+  labs(lty="latitude (°)",color= "source latitude (°)", shape="G (°)", fill="T0 (°)")
+#  facet_wrap(~G)
+
+j.plot= ggplot(data= j1.y) + 
+  aes(x = Year, y = value, color=factor(source.lat), lty=factor(lat), shape=factor(G)) + 
+  geom_line() + geom_point(size=2.5, aes(fill=(ifelse(G==150, NA, T0))))+
+  ylab("First generation phenology (day of year)")+
+  scale_shape_manual(values=c(1,21))+ #or 19
+  scale_fill_continuous(na.value=NA)+
+  labs(lty="latitude (°)",color= "source latitude (°)", shape="G (°)", fill="T0 (°)")
+
+
+#tile plot
+#j.plot= ggplot(data= j1.y) + 
+#  aes(x = factor(dev), y = factor(lat), z = value, fill = value) + 
+#  geom_tile() + 
+#  coord_equal() + 
+#  scale_fill_distiller(palette="Spectral", na.value="white", name="j")+
+#  facet_wrap(~Year)+
+#  theme(legend.position="bottom", axis.text.x = element_text(angle = 90, hjust = 1)) +
+#  labs(title=genera[genus.k], x="Source Lat", y="Transplant Lat")
+
+#---------
+
+setwd("/Volumes/GoogleDrive/My Drive/Buckley/work/ICBSeasonality/figures/LocalAdaptation/") 
+pdf("RecipTran_Aug2021.pdf",height = 5, width = 10)
+
+j.plot
 
 dev.off()
