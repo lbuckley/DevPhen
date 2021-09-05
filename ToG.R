@@ -16,6 +16,7 @@ library(zoo)
 library(fields)
 library(patchwork)
 library(viridisLite)
+library(viridis)
 library(lme4)
 library(car)
 library(sjPlot)
@@ -198,16 +199,21 @@ coef_st = tidy(mod1,
 gen.lab= la.dat[duplicated(la.dat$Genus)==FALSE,]
 
 #by latitude
-p<- ggplot(data=la.dat, aes(x=log(G), y = T0, color=Genus))+facet_grid(.~Order) +
+p<- ggplot(data=la.dat, aes(x=G, y = T0, color=Genus))+facet_grid(.~Order) +
   theme_bw()+ geom_point(aes(size=abs(lat)))  +geom_smooth(method=lm, se=FALSE)+scale_size(range = c(1, 4))+
   theme(legend.position="bottom")+
-  geom_text(data=gen.lab, aes(label=Genus), hjust=0)
+  labs(size="Absolute latitude (°)")
+  #geom_text(data=gen.lab, aes(label=Genus), hjust= -0.2)
 
 #plot out
 setwd(paste(fdir,"out/",sep="") )
-pdf("Fig1_ToG.pdf", height = 8, width = 10)
+pdf("Fig1_ToG.pdf", height = 6, width = 10)
 p
 #T0.plot +G.plot+ plot_layout(ncol=1)
+dev.off()
+
+pdf("FigS1_ToG.pdf", height = 8, width = 8)
+p2
 dev.off()
 
 #doesn't align

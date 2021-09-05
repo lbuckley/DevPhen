@@ -30,13 +30,18 @@ new.dat$T0 <- predict(mod1, newdata = new.dat)
 
 #Read GGCN database inventory http://www.ncdc.noaa.gov/oa/climate/ghcn-daily/
 setwd(paste(fdir,"data/",sep=""))
-stations=read.table("ghcnd-inventory.txt")
+stations=read.table("ghcnd-inventory_old.txt")
 names(stations)=c("Id","Lat","Lon","Var","FirstYear","LastYear")
 stations.un= unique(stations$Id)
 stats.elev= read.csv("ghcnd-stations.csv")
 
 #Restrict stations to those with recent data and at least 20 years of data
-stations= stations[which(stations$LastYear>2010 & (stations$LastYear-stations$FirstYear)>20 ),] 
+#stations= stations[which(stations$LastYear>2010 & (stations$LastYear-stations$FirstYear)>20 ),] 
+stations= stations[which(stations$LastYear>2013 & stations$FirstYear<1970),] 
+
+#manually drop stations known to have incomplete data
+stations= stations[-which(stations$Id %in% c("USC00413060","CA004016640","USC00417622","CA004019040","CA004010984")),]
+#CA004019040 pretty good, but look for later dates
 
 #Check have TMIN and TMAX dat
 stations= stations[which(stations$Var=="TMAX" | stations$Var=="TMIN"),]
@@ -52,9 +57,9 @@ gen.dat=new.dat
 gen.dat$lon=-105 #choose longitude
 gen.dat$lat= gen.dat$abs.lat
 
-j1.all= array(NA, dim=c(1,length(1970:2015),6,6) )
-t1.all= array(NA, dim=c(1,length(1970:2015),6,6) )
-ngen.all= array(NA, dim=c(1,length(1970:2015),6,6) )
+j1.all= array(NA, dim=c(1,length(1970:2020),6,6) )
+t1.all= array(NA, dim=c(1,length(1970:2020),6,6) )
+ngen.all= array(NA, dim=c(1,length(1970:2020),6,6) )
 
 #------
 #loop stations
@@ -152,8 +157,8 @@ stat.inds= order(gen.dat$lat)[!duplicated(sort(gen.dat$lat))]
       #cumsum within groups
       #Egg to adult DD, First date beyond threshold
       
-      js= matrix(NA, 20, length(1970:2015) )
-      ts=  matrix(NA, 20, length(1970:2015) )
+      js= matrix(NA, 20, length(1970:2020) )
+      ts=  matrix(NA, 20, length(1970:2020) )
       
       for(genk in 1:20){
         
@@ -165,9 +170,9 @@ stat.inds= order(gen.dat$lat)[!duplicated(sort(gen.dat$lat))]
         phen= phen[!is.na(phen$j),]
         
         #use only years starting 1970
-        years.ind=1970:2015
+        years.ind=1970:2020
         year.loop= unique(phen$year)
-        year.loop= year.loop[which(year.loop>1969 & year.loop<2016) ]
+        year.loop= year.loop[which(year.loop>1969 & year.loop<2021) ]
         
         if(length(year.loop)>0) for(yeark in 1: length(year.loop)){
           
@@ -205,13 +210,12 @@ stat.inds= order(gen.dat$lat)[!duplicated(sort(gen.dat$lat))]
     
   } #loop station
 
-
 ##SAVE OUTPUT
-setwd(paste(fdir,"out_recip/" ,sep=""))
-saveRDS(phen.dat, "phendat_gen.rds")
-saveRDS(phen.fixed, "phenfix_gen.rds")
-saveRDS(ngens, "ngens_gen.rds")
-saveRDS(dddat, "dddat_media_gen.rds")
+#setwd(paste(fdir,"out_recip/" ,sep=""))
+#saveRDS(phen.dat, "phendat_gen.rds")
+#saveRDS(phen.fixed, "phenfix_gen.rds")
+#saveRDS(ngens, "ngens_gen.rds")
+#saveRDS(dddat, "dddat_media_gen.rds")
 
 ##READ BACK IN
 # setwd(paste(fdir,"out_recip/",sep="") )
@@ -221,11 +225,11 @@ saveRDS(dddat, "dddat_media_gen.rds")
 # dddat= readRDS("dddat_media_gen.rds")
 
 #drop omit data
-dropi= which( dddat$omit=="y" )
-phen.dat= phen.dat[-dropi,,,]
-phen.fixed= phen.fixed[-dropi,,]
-ngens= ngens[-dropi,]
-dddat= dddat[-dropi,]
+#dropi= which( dddat$omit=="y" )
+#phen.dat= phen.dat[-dropi,,,]
+#phen.fixed= phen.fixed[-dropi,,]
+#ngens= ngens[-dropi,]
+#dddat= dddat[-dropi,]
 
 #============================================================
 #PLOT RECIPROCAL TRANPLANT RESULTS
@@ -239,7 +243,6 @@ library(cowplot)
 #for each genus
 #across years, for each station, plot data for all populations
 
-j1.all= array(NA, dim=c(1,length(1970:2015),6,6) )
 j1.y= j1.all[,,1:6,1:6]
 j1.all[1,,stat.k,pop.k]
 
@@ -256,26 +259,17 @@ j1.m$G= new.dat$G[j1.m$pop]
 j1.m$source.lat= new.dat$abs.lat[j1.m$pop]
 
 #restrict years
-j1.y= j1.m#[j1.m$Year %in% c(1970, 2015),]
+j1.y= j1.m#[j1.m$Year %in% c(1970, 2020),]
 
 #plot phenology
-ggplot(data= j1.y) + 
-  aes(x = Year, y = value, color=factor(source.lat), lty=factor(lat), shape=factor(G)) + 
-  geom_line() + geom_point(size=2.5, aes(fill=(ifelse(G==150, NA, T0))))+
-  ylab("First generation phenology (day of year)")+
-  scale_shape_manual(values=c(1,21))+ #or 19
-  scale_fill_continuous(na.value=NA)+
-  labs(lty="latitude (°)",color= "source latitude (°)", shape="G (°)", fill="T0 (°)")
-#  facet_wrap(~G)
-
 j.plot= ggplot(data= j1.y) + 
   aes(x = Year, y = value, color=factor(source.lat), lty=factor(lat), shape=factor(G)) + 
-  geom_line() + geom_point(size=2.5, aes(fill=(ifelse(G==150, NA, T0))))+
+  geom_line() + geom_point(size=2, aes(fill=T0))+
   ylab("First generation phenology (day of year)")+
-  scale_shape_manual(values=c(1,21))+ #or 19
-  scale_fill_continuous(na.value=NA)+
-  labs(lty="latitude (°)",color= "source latitude (°)", shape="G (°)", fill="T0 (°)")
-
+  scale_shape_manual(values=c(25, 24))+ 
+  scale_fill_gradientn(colours = terrain.colors(5))+
+  labs(lty="Latitude (°)",color= "Source latitude (°)", shape="G (°)", fill="T0 (°)")+
+  theme_bw()
 
 #tile plot
 #j.plot= ggplot(data= j1.y) + 
@@ -290,7 +284,7 @@ j.plot= ggplot(data= j1.y) +
 #---------
 
 setwd("/Volumes/GoogleDrive/My Drive/Buckley/work/ICBSeasonality/figures/LocalAdaptation/") 
-pdf("RecipTran_Aug2021.pdf",height = 5, width = 10)
+pdf("RecipTran_Aug2021.pdf",height = 6, width = 10)
 
 j.plot
 
