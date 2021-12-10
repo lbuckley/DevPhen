@@ -211,7 +211,8 @@ stat.inds= order(gen.dat$lat)[!duplicated(sort(gen.dat$lat))]
   } #loop station
 
 ##SAVE OUTPUT
-#setwd(paste(fdir,"out_recip/" ,sep=""))
+setwd(paste(fdir,"out_recip/" ,sep=""))
+saveRDS(j1.all, "j1_all.rds")
 #saveRDS(phen.dat, "phendat_gen.rds")
 #saveRDS(phen.fixed, "phenfix_gen.rds")
 #saveRDS(ngens, "ngens_gen.rds")
