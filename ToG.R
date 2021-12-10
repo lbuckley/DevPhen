@@ -68,7 +68,7 @@ la.dat.sp= subset(dddat, dddat$Species %in% la.spec$Species)
 library(lattice)
 library(rasterVis)
 library(maps)
-library(mapdata) 
+library(mapdata)
 library(maptools)
 
 #load worldmap
@@ -85,7 +85,7 @@ ggplot(data = world) +
 
 #get elevation
 #library(rgbif)
-#elevation= elevation(latitude = la.dat$lat, longitude = la.dat$lon, 
+#elevation= elevation(latitude = la.dat$lat, longitude = la.dat$lon,
 #                 elevation_model = "gtopo30",
 #                 username ="lbuckley")
 
@@ -110,7 +110,7 @@ la.dat= subset(dddat, dddat$Genus %in% la.gen$Genus)
 
 #get elevation
 #library(rgbif)
-#elevation= elevation(latitude = la.dat$lat, longitude = la.dat$lon, 
+#elevation= elevation(latitude = la.dat$lat, longitude = la.dat$lon,
 #                 elevation_model = "gtopo30",
 #                 username ="lbuckley")
 
@@ -132,14 +132,14 @@ la.dat= subset(dddat, dddat$Genus %in% la.gen$Genus)
 
 #by order
 orders= unique(la.dat$Order)[1:4]
-  #Drop "Thysanoptera" due to limited data
+#Drop "Thysanoptera" due to limited data
 la.dat= la.dat[la.dat$Order %in% orders,]
 
 #stats by lat elev
 la.dat$abs.lat= abs(la.dat$lat)
 
 #check distributions
-ggplot(la.dat, aes(x=abs.lat)) +  
+ggplot(la.dat, aes(x=abs.lat)) +
   geom_histogram()+facet_grid(.~Order)
 
 #scale
@@ -148,19 +148,19 @@ ggplot(la.dat, aes(x=abs.lat)) +
 #                    abs.lat_cs=scale(abs.lat))
 
 #models
-mod1 <- lmer(T0 ~ G*abs.lat+ 
-                 (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat)
+mod1 <- lmer(T0 ~ G*abs.lat+
+               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat)
 
-#mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+ 
+#mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+
 #               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat2)
 
-#mod1 <- lmer(T0 ~ G_cs*log(elev)+ 
+#mod1 <- lmer(T0 ~ G_cs*log(elev)+
 #               (1|Genus), na.action = 'na.omit', REML=FALSE, data = la.dat2)
 
 #by order
 ord.k=4
-mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+ 
-               (1|Genus), na.action = 'na.omit', REML=FALSE, 
+mod1 <- lmer(T0 ~ G_cs*abs.lat_cs+
+               (1|Genus), na.action = 'na.omit', REML=FALSE,
              data = la.dat2[la.dat2$Order==orders[ord.k],])
 
 Anova(mod1, type=3)
@@ -185,7 +185,7 @@ p2 <- plot_model(mod1, type="pred", terms=c("G","abs.lat"), show.data=TRUE)
 p2
 
 #extract coefficients
-coef_st = tidy(mod1, 
+coef_st = tidy(mod1,
                effects = "fixed",
                conf.int = TRUE,
                conf.method = "profile")
@@ -203,7 +203,7 @@ p<- ggplot(data=la.dat, aes(x=G, y = T0, color=Genus))+facet_grid(.~Order) +
   theme_bw()+ geom_point(aes(size=abs(lat)))  +geom_smooth(method=lm, se=FALSE)+scale_size(range = c(1, 4))+
   theme(legend.position="bottom")+
   labs(size="Absolute latitude (°)")
-  #geom_text(data=gen.lab, aes(label=Genus), hjust= -0.2)
+#geom_text(data=gen.lab, aes(label=Genus), hjust= -0.2)
 
 #plot out
 setwd(paste(fdir,"out/",sep="") )
