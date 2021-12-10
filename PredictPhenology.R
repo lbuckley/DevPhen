@@ -24,11 +24,6 @@ new.dat$T0 <- predict(mod1, newdata = new.dat)
 #show phenology given fits
 #climate change responses
 
-lat.plot= ggplot(data=new.dat, aes(x=G, y = T0, color=abs.lat, group=abs.lat))+
-  geom_point(size=2)  +geom_smooth(method=lm, se=FALSE)+
-  theme(legend.position="right")+theme_bw()+
-  labs(color="Absolute latitude (°)")
-
 #--------------------------------
 #SAVE STATION DATA
 #FIND CLOSEST GHCN STATIONS
@@ -254,15 +249,26 @@ j1.m$source.lat= new.dat$abs.lat[j1.m$pop]
 #restrict years
 j1.y= j1.m#[j1.m$Year %in% c(1970, 2020),]
 
+#plot To and G
+lat.plot= ggplot(data=new.dat, aes(x=G, y = T0, color=abs.lat, group=abs.lat))+
+  geom_point(size=2)  +geom_smooth(method=lm, se=FALSE)+
+  theme_bw(base_size = 16)+theme(legend.position="none")+
+  scale_color_viridis(discrete=TRUE)
+#  +labs(color="Absolute latitude (°)")
+
 #plot phenology
 j.plot= ggplot(data= j1.y) +
   aes(x = Year, y = value, color=factor(source.lat), lty=factor(lat), shape=factor(G)) +
   geom_line() + geom_point(size=2)+
   ylab("First generation phenology (day of year)")+
-  scale_shape_manual(values=c(25, 24))+
+  #scale_shape_manual(values=c(21, 22))+
   #scale_fill_gradientn(colours = terrain.colors(5))+
   labs(lty="Latitude (°)",color= "Source latitude (°)", shape="G (°)", fill="T0 (°)")+
-  theme_bw()
+  theme_bw(base_size = 16)+ guides(linetype = FALSE)+
+  scale_color_viridis(discrete=TRUE)+
+  geom_text(x=2005, y=163, label="50° Latitude", color="black", size=5)+
+  geom_text(x=2005, y=95, label="35° Latitude", color="black", size=5)+
+  geom_text(x=2005, y=35, label="20° Latitude", color="black", size=5)
 
 #tile plot
 #j.plot= ggplot(data= j1.y) +
@@ -276,9 +282,9 @@ j.plot= ggplot(data= j1.y) +
 
 #---------
 
-setwd("/Volumes/GoogleDrive/My Drive/Buckley/work/ICBSeasonality/figures/LocalAdaptation/")
-pdf("RecipTran_Aug2021.pdf",height = 6, width = 10)
+setwd("/Volumes/GoogleDrive/My Drive/Buckley/work/COISphenology/figures/")
+pdf("RecipTran_Dec2021.pdf",height = 6, width = 10)
 
-j.plot
+plot_grid(lat.plot, j.plot, nrow = 1, rel_widths = c(1.7, 6),labels = c('(a)', '(b)'), label_size = 12)
 
 dev.off()
